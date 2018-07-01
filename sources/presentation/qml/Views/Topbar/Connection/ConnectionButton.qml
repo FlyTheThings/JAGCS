@@ -11,12 +11,27 @@ TopbarButton {
     property real bytesRecv: 0.0
     property real bytesSent: 0.0
 
+    property bool sent: false
+    property bool recv: false
+
     onClicked: info.visible ? info.close() : info.open()
 
     ConnectionPresenter {
         id: presenter
         view: connection
         Component.onCompleted: updateStatus()
+    }
+
+    Timer {
+        running: sent
+        interval: 100
+        onTriggered: sent = false
+    }
+
+    Timer {
+        running: recv
+        interval: 100
+        onTriggered: recv = false
     }
 
     Controls.ColoredIcon {

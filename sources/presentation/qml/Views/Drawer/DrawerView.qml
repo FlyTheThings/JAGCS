@@ -33,7 +33,6 @@ Controls.Drawer {
     onAboutToHide: presenter.setMode(DrawerPresenter.UnknownMode)
 
     width: drawerContents.width
-    clip: true
 
     Behavior on width { PropertyAnimation { duration: 200 } }
 
@@ -48,6 +47,7 @@ Controls.Drawer {
         anchors.bottom: parent.bottom
         anchors.right: parent.right
         visible: drawer.position > 0
+        clip: true
 
         ColumnLayout {
             id: drawerHeader

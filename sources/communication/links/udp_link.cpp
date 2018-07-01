@@ -5,14 +5,17 @@
 
 using namespace comm;
 
-UdpLink::UdpLink(int port, QObject* parent):
+UdpLink::UdpLink(quint16 port, QObject* parent):
     AbstractLink(parent),
     m_socket(new QUdpSocket(this)),
     m_port(port),
     m_autoResponse(true)
 {
-    QObject::connect(m_socket, &QUdpSocket::readyRead,
-                     this, &UdpLink::readPendingDatagrams);
+    QObject::connect(m_socket, &QUdpSocket::readyRead, this, &UdpLink::onReadyRead);
+    // TODO: QOverload<QUdpSocket::SocketError>::of(&QUdpSocket::error),
+    connect(m_socket, static_cast<void (QUdpSocket::*)
+            (QUdpSocket::SocketError)>(&QUdpSocket::error),
+            this, &AbstractLink::onSocketError);
 }
 
 bool UdpLink::isConnected() const
@@ -20,7 +23,7 @@ bool UdpLink::isConnected() const
     return m_socket->state() == QAbstractSocket::BoundState;
 }
 
-int UdpLink::port() const
+quint16 UdpLink::port() const
 {
     return m_port;
 }
@@ -47,18 +50,15 @@ Endpoint UdpLink::endpoint(int index) const
 
 void UdpLink::connectLink()
 {
-    if (this->isConnected()) return;
+    if (this->isConnected() || m_port == 0) return;
 
     if (!m_socket->bind(m_port))
     {
-        qWarning("UDP connection error: '%s'!",
-                 qPrintable(m_socket->errorString()));
-
         m_socket->close();
     }
     else
     {
-        emit upChanged(true);
+        emit connectedChanged(true);
     }
 }
 
@@ -67,18 +67,10 @@ void UdpLink::disconnectLink()
     if (!this->isConnected()) return;
 
     m_socket->close();
-    emit upChanged(false);
+    emit connectedChanged(false);
 }
 
-void UdpLink::sendDataImpl(const QByteArray& data)
-{
-    for (const Endpoint& endpoint: m_endpoints)
-    {
-        m_socket->writeDatagram(data, endpoint.address(), endpoint.port());
-    }
-}
-
-void UdpLink::setPort(int port)
+void UdpLink::setPort(quint16 port)
 {
     if (m_port == port) return;
 
@@ -119,7 +111,17 @@ void UdpLink::setAutoResponse(bool autoResponse)
     emit autoResponseChanged(autoResponse);
 }
 
-void UdpLink::readPendingDatagrams()
+bool UdpLink::sendDataImpl(const QByteArray& data)
+{
+    bool ok = false;
+    for (const Endpoint& endpoint: m_endpoints)
+    {
+         if (m_socket->writeDatagram(data, endpoint.address(), endpoint.port()) > 0) ok = true;
+    }
+    return ok;
+}
+
+void UdpLink::onReadyRead()
 {
     while (m_socket->hasPendingDatagrams())
     {

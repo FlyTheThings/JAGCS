@@ -26,14 +26,19 @@ namespace comm
         void sendData(const QByteArray& data);
 
     signals:
-        void upChanged(bool isConnected);
-        void dataReceived(const QByteArray& data);
+        void connectedChanged(bool connected);
+        void errored(QString error);
+        void dataReceived(QByteArray data);
+        void dataSent();
 
     protected:
-        virtual void sendDataImpl(const QByteArray& data) = 0;
+        virtual bool sendDataImpl(const QByteArray& data) = 0;
 
     protected slots:
         void receiveData(const QByteArray& data);
+
+    public slots: // QOverload require public
+        void onSocketError(int error);
 
     private:
         int m_bytesReceived = 0;

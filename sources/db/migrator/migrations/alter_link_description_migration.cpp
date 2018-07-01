@@ -31,7 +31,7 @@ bool AlterLinkDescriptionMigration::up()
     defaultUdpLink->setType(LinkDescription::Udp);
     defaultUdpLink->setName(qApp->translate("DefaultParamsMigration", "UDP Link"));
     defaultUdpLink->setParameter(LinkDescription::Port,
-                                 settings::Provider::value(settings::communication::port).toInt());
+                                 settings::Provider::value(settings::communication::udpPort).toInt());
     defaultUdpLink->setParameter(LinkDescription::UdpAutoResponse, true);
     linkRepository.save(defaultUdpLink);
 
@@ -63,5 +63,5 @@ bool AlterLinkDescriptionMigration::down()
 
 QDateTime AlterLinkDescriptionMigration::version() const
 {
-    return QDateTime::fromString("2018.03.08-14:58:50", format);
+    return QDateTime::fromString("2018.06.27-12:18:00", format);
 }

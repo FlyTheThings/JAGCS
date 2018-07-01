@@ -4,6 +4,12 @@
 #include <QMetaEnum>
 #include <QDebug>
 
+namespace
+{
+    const QString paramSeparator = "\\;";
+    const QString valueSeparator = "\\:";
+}
+
 using namespace dto;
 
 namespace
@@ -12,7 +18,9 @@ namespace
     {
         { LinkDescription::Serial, { LinkDescription::Device, LinkDescription::BaudRate } },
         { LinkDescription::Udp, { LinkDescription::Port, LinkDescription::Endpoints,
-                                  LinkDescription::UdpAutoResponse } }
+                                  LinkDescription::UdpAutoResponse } },
+        { LinkDescription::Tcp, { LinkDescription::Address, LinkDescription::Port } },
+        { LinkDescription::Bluetooth, { LinkDescription::Device, LinkDescription::Address } }
     };
 }
 
@@ -44,11 +52,13 @@ QString LinkDescription::parameters() const
 
     for (Parameter parameter: m_parameters.keys())
     {
-        list.append(QString(enumerator.valueToKey(parameter)) + ":" +
-                    m_parameters.value(parameter).toString());
+        QString paramString = m_parameters.value(parameter).toString();
+
+        list.append(QString(enumerator.valueToKey(parameter)) + ::valueSeparator +
+                    paramString.remove(::paramSeparator).remove(::valueSeparator));
     }
 
-    return list.join(";");
+    return list.join(::paramSeparator);
 }
 
 void LinkDescription::setParameters(const QString& arguments)
@@ -57,13 +67,15 @@ void LinkDescription::setParameters(const QString& arguments)
     QMetaEnum enumerator = LinkDescription::staticMetaObject.enumerator(enumIndex);
 
     m_parameters.clear();
-    for (const QString& pairs: arguments.split(";"))
+    for (const QString& pairs: arguments.split(::paramSeparator))
     {
-        QStringList pairList = pairs.split(":");
+        QStringList pairList = pairs.split(::valueSeparator);
         if (pairList.count() < 2) continue;
 
         Parameter param = static_cast<Parameter>(enumerator.keyToValue(qPrintable(pairList.at(0))));
-        if (param != UnknownParameter) m_parameters[param] = pairList.at(1);
+        if (param == UnknownParameter) continue;
+
+        m_parameters[param] = pairList.at(1);
     }
 }
 

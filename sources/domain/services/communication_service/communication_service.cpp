@@ -83,6 +83,12 @@ CommunicationService::CommunicationService(SerialPortService* serialPortService,
             this, &CommunicationService::onMavLinkStatisticsChanged);
     connect(d->commWorker, &CommunicatorWorker::mavLinkProtocolChanged,
             this, &CommunicationService::onMavlinkProtocolChanged);
+    connect(d->commWorker, &CommunicatorWorker::linkSent,
+            this, &CommunicationService::linkSent);
+    connect(d->commWorker, &CommunicatorWorker::linkRecv,
+            this, &CommunicationService::linkRecv);
+    connect(d->commWorker, &CommunicatorWorker::linkErrored,
+            this, &CommunicationService::onLinkErrored);
 
     d->loadDescriptions();
 }
@@ -138,8 +144,7 @@ void CommunicationService::init()
 
     for (const dto::LinkDescriptionPtr& description: this->descriptions())
     {
-        comm::LinkFactoryPtr factory(new comm::DescriptionLinkFactory(
-                                         description));
+        comm::LinkFactoryPtr factory(new comm::DescriptionLinkFactory(description));
         d->commWorker->updateLink(description->id(),
                                   factory, description->isAutoConnect());
 
@@ -264,6 +269,14 @@ void CommunicationService::onMavlinkProtocolChanged(int linkId,
     description->setProtocol(protocol);
 
     emit linkStatusChanged(description);
+}
+
+void CommunicationService::onLinkErrored(int linkId, const QString& error)
+{
+    dto::LinkDescriptionPtr description = this->description(linkId);
+
+    notificationBus->notify(tr("Link") + " " + description->name(),
+                            error, dto::Notification::Warning);
 }
 
 void CommunicationService::onDevicesChanged()

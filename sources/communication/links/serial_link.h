@@ -24,8 +24,6 @@ namespace comm
         void connectLink() override;
         void disconnectLink() override;
 
-        void sendDataImpl(const QByteArray& data) override;
-
         void setDevice(QString device);
         void setBaudRate(qint32 baudRate);
 
@@ -33,9 +31,12 @@ namespace comm
         void deviceChanged(QString device);
         void baudRateChanged(qint32 baudRate);
 
+    protected:
+        bool sendDataImpl(const QByteArray& data) override;
+
     private slots:
         void readSerialData();
-        void onError();
+        void onError(int error);
 
     private:
         QSerialPort* m_port;

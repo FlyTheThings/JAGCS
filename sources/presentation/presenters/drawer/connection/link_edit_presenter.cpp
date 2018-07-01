@@ -11,6 +11,7 @@
 
 #include "service_registry.h"
 #include "serial_ports_service.h"
+#include "bluetooth_service.h"
 #include "communication_service.h"
 
 #include "link_statistics_model.h"
@@ -25,10 +26,20 @@ using namespace presentation;
 LinkEditPresenter::LinkEditPresenter(QObject* parent):
     LinkPresenter(parent),
     m_serialService(serviceRegistry->serialPortService()),
+    m_bluetoothService(serviceRegistry->bluetoothService()),
     m_statisticsModel(new LinkStatisticsModel(this))
 {
     connect(m_serialService, &domain::SerialPortService::availableDevicesChanged,
             this, &LinkEditPresenter::updateDevices);
+    connect(m_bluetoothService, &domain::BluetoothService::deviceDiscovered,
+            this, &LinkEditPresenter::updateDevices);
+    connect(m_bluetoothService, &domain::BluetoothService::stopped,
+            this, [this](){ this->setViewProperty(PROPERTY(discoveringBluetooth), false);});
+}
+
+QString LinkEditPresenter::bluetoothAddress(const QString& device) const
+{
+    return m_bluetoothService->deviceAddress(device);
 }
 
 void LinkEditPresenter::setLink(int id)
@@ -47,6 +58,8 @@ void LinkEditPresenter::updateLink()
 {
     LinkPresenter::updateLink();
 
+    this->setViewProperty(PROPERTY(address),
+                          m_link ? m_link->parameter(dto::LinkDescription::Address) : 0);
     this->setViewProperty(PROPERTY(port),
                           m_link ? m_link->parameter(dto::LinkDescription::Port) : 0);
     this->setViewProperty(PROPERTY(device),
@@ -55,8 +68,8 @@ void LinkEditPresenter::updateLink()
                           m_link ? m_link->parameter(dto::LinkDescription::BaudRate) : 0);
     QString endpoints;
     if (m_link) endpoints = m_link->parameter(dto::LinkDescription::Endpoints).toString();
-    this->setViewProperty(PROPERTY(endpoints), endpoints.isEmpty() ?
-                              QStringList() : endpoints.split(::separator));
+    this->setViewProperty(PROPERTY(endpoints),
+                          endpoints.isEmpty() ? QStringList() : endpoints.split(::separator));
     this->setViewProperty(PROPERTY(autoResponse),
                           m_link ? m_link->parameter(dto::LinkDescription::UdpAutoResponse) : false);
 
@@ -72,26 +85,41 @@ void LinkEditPresenter::updateRates()
 
 void LinkEditPresenter::updateDevices()
 {
-    if (!this->view()) return;
+    if (m_link.isNull()) return;
 
     QStringList devices;
     devices.append(QString());
+    QString device = m_link->parameter(dto::LinkDescription::Device).toString();
 
-    for (const QString& device: m_serialService->availableDevices())
+    if (m_link->type() == dto::LinkDescription::Serial)
     {
-        devices.append(device);
+        for (const QString& device: m_serialService->availableDevices()) devices.append(device);
+    }
+    else if (m_link->type() == dto::LinkDescription::Bluetooth)
+    {
+        this->setViewProperty(PROPERTY(discoveringBluetooth), m_bluetoothService->isDiscoveryActive());
+        this->setViewProperty(PROPERTY(address), m_bluetoothService->deviceAddress(device));
+
+        for (const QString& device: m_bluetoothService->discoveredDevices()) devices.append(device);
     }
 
-    if (m_link)
-    {
-        QString device = m_link->parameter(dto::LinkDescription::Device).toString();
-        if (m_link && !devices.contains(device))
-        {
-            devices.append(device);
-        }
-    }
+    if (!devices.contains(device)) devices.append(device);
 
     this->setViewProperty(PROPERTY(devices), devices);
+}
+
+void LinkEditPresenter::startBluetoothDiscovery()
+{
+    m_bluetoothService->startDiscovery();
+
+    this->setViewProperty(PROPERTY(discoveringBluetooth), m_bluetoothService->isDiscoveryActive());
+}
+
+void LinkEditPresenter::stopBluetoothDiscovery()
+{
+    m_bluetoothService->stopDiscovery();
+
+    this->setViewProperty(PROPERTY(discoveringBluetoothBluetooth), m_bluetoothService->isDiscoveryActive());
 }
 
 void LinkEditPresenter::save()
@@ -103,6 +131,8 @@ void LinkEditPresenter::save()
                                 this->viewProperty(PROPERTY(device)).toString());
     m_link->setParameter(dto::LinkDescription::BaudRate,
                                 this->viewProperty(PROPERTY(baudRate)).toInt());
+    m_link->setParameter(dto::LinkDescription::Address,
+                                this->viewProperty(PROPERTY(address)).toString());
     m_link->setParameter(dto::LinkDescription::Port,
                                 this->viewProperty(PROPERTY(port)).toInt());
 

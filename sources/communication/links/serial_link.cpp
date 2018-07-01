@@ -36,19 +36,9 @@ qint32 SerialLink::baudRate() const
 
 void SerialLink::connectLink()
 {
-    if (this->isConnected()) return;
+    if (this->isConnected() || m_port->portName().isEmpty()) return;
 
-    if (!m_port->open(QIODevice::ReadWrite))
-    {
-        qWarning("Serial port connection error: '%s'!",
-                 qPrintable(m_port->errorString()));
-
-        m_port->close();
-    }
-    else
-    {
-        emit upChanged(true);
-    }
+    if (m_port->open(QIODevice::ReadWrite)) emit connectedChanged(true);
 }
 
 void SerialLink::disconnectLink()
@@ -56,12 +46,7 @@ void SerialLink::disconnectLink()
     if (!this->isConnected()) return;
 
     m_port->close();
-    emit upChanged(false);
-}
-
-void SerialLink::sendDataImpl(const QByteArray& data)
-{
-    m_port->write(data.data(), data.size());
+    emit connectedChanged(false);
 }
 
 void SerialLink::setDevice(QString device)
@@ -80,12 +65,60 @@ void SerialLink::setBaudRate(qint32 baudRate)
     emit baudRateChanged(m_port->baudRate());
 }
 
-void SerialLink::readSerialData()
+bool SerialLink::sendDataImpl(const QByteArray& data)
 {
-    this->receiveData(m_port->readAll());
+    if (m_port->isWritable()) return m_port->write(data.data(), data.size()) > 0;
+
+    return false;
 }
 
-void SerialLink::onError()
+void SerialLink::readSerialData()
 {
-    if (m_port->error() == QSerialPort::ResourceError && this->isConnected()) this->disconnectLink();
+    if (m_port->isReadable()) this->receiveData(m_port->readAll());
+}
+
+void SerialLink::onError(int error)
+{
+    switch (error)
+    {
+    case QSerialPort::NoError:
+        break;
+    case QSerialPort::DeviceNotFoundError:
+        emit errored(tr("Attempting to open an non-existing device %1").arg(m_port->portName()));
+        break;
+    case QSerialPort::PermissionError:
+        emit errored(tr("Attempting to open an already opened device %1 or a user not having enough"
+                        " permission to open").arg(m_port->portName()));
+        break;
+    case QSerialPort::OpenError:
+        emit errored(tr("Attempting to open an already opened device in this object"));
+        break;
+    case QSerialPort::NotOpenError:
+        emit errored(tr("Operation is executed that can only be successfully performed "
+                        "if the device is open"));
+        break;
+    case QSerialPort::WriteError:
+        emit errored(tr("An I/O error occurred while writing the data"));
+        break;
+    case QSerialPort::ReadError:
+        emit errored(tr("An I/O error occurred while reading the data"));
+        break;
+    case QSerialPort::ResourceError:
+        emit errored(tr("An I/O error occurred when a resource becomes unavailable"));
+        m_port->close();
+        emit connectedChanged(false);
+        break;
+    case QSerialPort::UnsupportedOperationError:
+        emit errored(tr("The requested device operation is not supported or prohibited "
+                        "by the operating system"));
+        break;
+    case QSerialPort::TimeoutError:
+        emit errored(tr("A timeout error occurred"));
+        break;
+    default:
+    case QSerialPort::UnknownError:
+        emit errored(tr("An unidentified error occurred"));
+        qDebug() << error;
+        break;
+    }
 }

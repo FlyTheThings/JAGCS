@@ -29,7 +29,10 @@ namespace
         { communication::timeout, 5000 },
         { communication::autoAdd, true },
         { communication::baudRate, 57600 },
-        { communication::port, 14550 },
+        { communication::udpPort, 14550 },
+        { communication::tcpPort, 5760 },
+        { communication::tcpAddress, "127.0.0.1" },
+        { communication::bluetoothAddress, "00:00:00:00:00:00" },
         { communication::statisticsCount, 50 },
 
         { parameters::defaultAcceptanceRadius, 3 },
@@ -73,9 +76,14 @@ namespace
         { manual::joystick::yaw::axis, 4 },
         { manual::joystick::yaw::factor, 5 },
 
-        { gui::fullscreen, false },
-        { gui::locale, "en" },
+    #ifdef Q_OS_ANDROID
+        { gui::uiSize, 28 },
+        { gui::fullscreen, true },
+    #else
         { gui::uiSize, 36 },
+        { gui::fullscreen, false },
+    #endif
+        { gui::locale, "en" },
         { gui::paletteStyle, 0 },
         { gui::fdRollInverted, 0 },
         { gui::fdSpeedStep, 5 },

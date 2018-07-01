@@ -7,6 +7,7 @@
 namespace domain
 {
     class SerialPortService;
+    class BluetoothService;
 }
 
 namespace presentation
@@ -20,11 +21,15 @@ namespace presentation
     public:
         explicit LinkEditPresenter(QObject* parent = nullptr);
 
+        Q_INVOKABLE QString bluetoothAddress(const QString& device) const;
+
     public slots:
         void setLink(int id) override;
         void updateLink() override;
         void updateRates();
         void updateDevices();
+        void startBluetoothDiscovery();
+        void stopBluetoothDiscovery();
         void save();
 
     protected:
@@ -35,6 +40,8 @@ namespace presentation
 
     private:
         domain::SerialPortService* const m_serialService;
+        domain::BluetoothService* const m_bluetoothService;
+
         LinkStatisticsModel* const m_statisticsModel;
     };
 }

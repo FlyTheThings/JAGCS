@@ -45,6 +45,8 @@ namespace domain
         void descriptionChanged(dto::LinkDescriptionPtr description);
         void linkStatusChanged(dto::LinkDescriptionPtr description);
         void linkStatisticsChanged(dto::LinkStatisticsPtr statistics);
+        void linkSent(int linkId);
+        void linkRecv(int linkId);
 
     private slots:
         void onLinkStatusChanged(int linkId, bool connected);
@@ -57,6 +59,7 @@ namespace domain
                                         int packetsDrops);
         void onMavlinkProtocolChanged(int linkId,
                                       dto::LinkDescription::Protocol protocol);
+        void onLinkErrored(int linkId, const QString& error);
         void onDevicesChanged();
 
     private:

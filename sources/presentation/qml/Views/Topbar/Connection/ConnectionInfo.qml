@@ -3,39 +3,52 @@ import QtQuick.Layouts 1.3
 import JAGCS 1.0
 
 import "qrc:/Controls" as Controls
+import "qrc:/Indicators" as Indicators
 
 Controls.Popup {
     id: info
 
     closePolicy: Controls.Popup.CloseOnEscape | Controls.Popup.CloseOnPressOutsideParent
 
-    ColumnLayout {
-        spacing: sizings.spacing
+    GridLayout {
+        anchors.fill: parent
+        columns: 2
+        rowSpacing: sizings.spacing
 
-        Controls.ContentItem {
-            iconSource: "qrc:/icons/arrow_down.svg"
-            text: bytesRecv.toFixed(1) + " " + qsTr("B/s")
+        Indicators.Led {
+            color: recv ? customPalette.positiveColor : customPalette.sunkenColor
+        }
+
+        Controls.Label {
+            text: qsTr("Recv") + ": " + bytesRecv.toFixed(1) + " " + qsTr("B/s")
+            color: customPalette.positiveColor
             font.pixelSize: sizings.secondaryFontSize
             font.bold: true
-            horizontalAlignment: Text.AlignHCenter
             Layout.fillWidth: true
         }
 
-        Controls.ContentItem {
-            iconSource: "qrc:/icons/arrow_up.svg"
-            text: bytesSent.toFixed(1) + " " + qsTr("B/s")
+        Indicators.Led {
+            color: sent ? customPalette.skyColor : customPalette.sunkenColor
+        }
+
+        Controls.Label {
+            text: qsTr("Sent") + ": " + bytesSent.toFixed(1) + " " + qsTr("B/s")
+            color: customPalette.skyColor
             font.pixelSize: sizings.secondaryFontSize
             font.bold: true
-            horizontalAlignment: Text.AlignHCenter
             Layout.fillWidth: true
         }
 
         Controls.Button {
-            text: qsTr("Connection")
+            text: qsTr("Open connection menu")
+            flat: true
+            font.pixelSize: sizings.secondaryFontSize
+            font.bold: true
             onClicked: {
                 drawer.setMode(DrawerPresenter.Connection);
                 info.close();
             }
+            Layout.columnSpan: 2
             Layout.fillWidth: true
         }
     }
