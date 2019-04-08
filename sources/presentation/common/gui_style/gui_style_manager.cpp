@@ -3,38 +3,45 @@
 // Qt
 #include <QQmlContext>
 #include <QVariant>
+#include <QDebug>
+
+// Industrial
+#include "theme.h"
+#include "theme_configurator.h"
 
 // Internal
 #include "settings_provider.h"
-
 #include "presentation_context.h"
-#include "day_palette_factory.h"
-#include "night_palette_factory.h"
 
 using namespace presentation;
 
-GuiStyleManager::GuiStyleManager(QObject* parent): QObject(parent)
-{}
+GuiStyleManager::GuiStyleManager(QObject* parent):
+    QObject(parent),
+    m_configurator(new ThemeConfigurator(this))
+{
+    presentationContext->rootContext()->setContextProperty(
+                "industrial", QVariant::fromValue(m_configurator->theme()));
+}
+
+GuiStyleManager::~GuiStyleManager()
+{
+}
 
 void GuiStyleManager::setPaletteStyle(PaletteStyle paletteStyle)
 {
-    QScopedPointer<AbstractPaletteFactory> factory;
+    m_configurator->setPrimaryColor("#01c5a5");
+    m_configurator->setOnPrimaryColor("#000000");
 
     switch (paletteStyle) {
     case Day:
-        factory.reset(new DayPaletteFactory());
+        m_configurator->setBaseColor("#F5F5F5");
+        m_configurator->setOnBaseColor("#F5F5F5");
         break;
     case Night:
-        factory.reset(new NightPaletteFactory());
-        break;
-    default:
+        m_configurator->setBaseColor("#2d373e");
+        m_configurator->setOnBaseColor("#ffffff");
         break;
     }
-
-    if (!factory) return;
-
-    presentationContext->rootContext()->setContextProperty(
-                "customPalette", QVariant::fromValue(factory->create()));
 }
 
 void GuiStyleManager::loadSettingsPalette()
@@ -42,25 +49,9 @@ void GuiStyleManager::loadSettingsPalette()
     this->setPaletteStyle(PaletteStyle(settings::Provider::value(settings::gui::paletteStyle).toInt()));
 }
 
-void GuiStyleManager::setSizings(const Sizings& sizings)
+void GuiStyleManager::setSizings(int baseSize)
 {
-    presentationContext->rootContext()->setContextProperty("sizings", QVariant::fromValue(sizings));
-}
-
-void GuiStyleManager::setSizings(int controlBaseSize)
-{
-    Sizings sizings;
-
-    sizings.setControlBaseSize(controlBaseSize);
-    sizings.setInputControlHeight(controlBaseSize * 1.25);
-    sizings.setFontSize(controlBaseSize / 2);
-    sizings.setSecondaryFontSize(sizings.fontSize() * 0.75);
-    sizings.setSpacing(controlBaseSize / 4);
-    sizings.setMargins(controlBaseSize / 4);
-    sizings.setPadding(controlBaseSize / 6);
-    sizings.setShadowSize(3);
-
-    this->setSizings(sizings);
+    m_configurator->setBaseSize(baseSize);
 }
 
 void GuiStyleManager::loadSettingsSizings()

@@ -11,7 +11,7 @@ include(cmake/RecurseSubdirs.cmake)
 # Versions
 set(VERSION_MAJOR 0)
 set(VERSION_MINOR 5)
-set(VERSION_PATCH 1)
+set(VERSION_PATCH 2)
 
 # Get git revision hash
 execute_process(
@@ -66,7 +66,7 @@ set(LIBRARIES
 )
 
 # QGamepad option
-option(WITH_GAMEPAD "Compile with QGamepad module for manual input")
+option(WITH_GAMEPAD "Compile with QGamepad module for manual input" ON)
 if(WITH_GAMEPAD)
 add_definitions(-DWITH_GAMEPAD)
 find_package(Qt5 COMPONENTS
@@ -88,10 +88,7 @@ endif(WITH_MAPBOXGL)
 
 # Windows stuff
 if(WIN32)
-set(LIBRARIES
-    ${LIBRARIES}
-    opengl32
-)
+set(LIBRARIES ${LIBRARIES} opengl32)
 # RC compiler
 string(REPLACE "gcc" "windres" CMAKE_RC_COMPILER_INIT ${CMAKE_C_COMPILER})
 enable_language(RC)
@@ -112,8 +109,19 @@ set(LIBS
 )
 endif(ANDROID)
 
+# 2ndparty libraries
+include("${CMAKE_SOURCE_DIR}/2ndparty/industrial-controls/CMakeLists.txt")
+include_directories(${INDUSTRIAL_CONTROLS_INCLUDES})
+
+include("${CMAKE_SOURCE_DIR}/2ndparty/industrial-indicators/CMakeLists.txt")
+include_directories(${INDUSTRIAL_INDICATORS_INCLUDES})
+
+# Add Qt Creator import path
+set(QML_IMPORT_PATH "${QML_IMPORT_DIRS}" CACHE STRING "Qt Creator extra qml import paths")
+message(${QML_IMPORT_PATH})
+
 # MAVLink includes
-option(WITH_MAVLINK_V2 "MAVLink version 2 includes")
+option(WITH_MAVLINK_V2 "MAVLink version 2 includes" ON)
 if(WITH_MAVLINK_V2)
     include_directories("3rdparty/mavlink_v2")
     include_directories("3rdparty/mavlink_v2/ardupilotmega")
@@ -148,44 +156,51 @@ foreach(QM_FILE ${QM_FILES})
 endforeach()
 file(APPEND ${TRANSLATIONS_QRC} "\n\t</qresource>\n</RCC>")
 list(APPEND QRC_FILES ${TRANSLATIONS_QRC})
-
+#
 # Resources
 file(GLOB_RECURSE QRC_FILES "*.qrc")
 
 # Qt5 add resources
-qt5_add_resources(QRC_SOURCES ${QRC_FILES})
+qt5_add_resources(QRC_SOURCES
+    ${QRC_FILES}
+    ${INDUSTRIAL_CONTROLS_RESOURCES}
+    ${INDUSTRIAL_INDICATORS_RESOURCES}
+)
 
+# Includes
 include_directories(${INCLUDES})
 
 # Target
 if(ANDROID)
     include_directories(${ANDROID_SYSROOT}/usr/include)
-    add_library(${PROJECT} SHARED ${SOURCES} ${MOC_SOURCES} ${QRC_SOURCES} ${META_SOURCES})
+    add_library(${PROJECT} SHARED ${SOURCES} ${MOC_SOURCES} ${QRC_SOURCES} ${META_SOURCES}
+        ${INDUSTRIAL_CONTROLS_SOURCES} ${INDUSTRIAL_INDICATORS_SOURCES})
     set_target_properties(${PROJECT_NAME} PROPERTIES VERSION
         ${VERSION_MAJOR} "." ${VERSION_MINOR} "." ${VERSION_PATCH})
 else(ANDROID)
-    add_executable(${PROJECT} ${SOURCES} ${MOC_SOURCES} ${QRC_SOURCES} ${META_SOURCES})
+    add_executable(${PROJECT} ${SOURCES} ${MOC_SOURCES} ${QRC_SOURCES} ${META_SOURCES}
+        ${INDUSTRIAL_CONTROLS_SOURCES} ${INDUSTRIAL_INDICATORS_SOURCES})
 endif()
+
+# Qt libraries
+set(LIBRARIES ${LIBRARIES}
+    Qt5::Core
+    Qt5::Network
+    Qt5::SerialPort
+    Qt5::Bluetooth
+    Qt5::Sql
+    Qt5::Svg
+    Qt5::Gui
+    Qt5::Quick
+    Qt5::Multimedia
+    Qt5::Positioning
+    Qt5::Location
+    Qt5::Charts
+    Qt5::QuickControls2
+)
 
 # Link Libraries
 target_link_libraries(${PROJECT} ${LIBRARIES})
-
-# Use qt5 modules
-qt5_use_modules(${PROJECT}
-    Core
-    Network
-    SerialPort
-    Bluetooth
-    Sql
-    Svg
-    Gui
-    Quick
-    Multimedia
-    Positioning
-    Location
-    Charts
-    QuickControls2
-)
 
 if(WITH_GAMEPAD)
 qt5_use_modules(${PROJECT}
@@ -211,7 +226,6 @@ option(WITH_DEBIAN "Include instructions to make Debian package")
 if(WITH_DEBIAN)
     # https://cmake.org/Bug/view.php?id=14444
     install(TARGETS ${PROJECT} DESTINATION "/usr/local/bin/")
-
     add_subdirectory(platforms/debian)
 endif(WITH_DEBIAN)
 

@@ -11,6 +11,9 @@
 
 #include "command_service.h"
 
+#include "telemetry_service.h"
+#include "telemetry_portion.h"
+
 #include "vehicle_service.h"
 #include "vehicle.h"
 
@@ -31,7 +34,7 @@ namespace
         { MAV_CMD_DO_GO_AROUND, dto::Command::GoAround },
         { MAV_CMD_DO_PAUSE_CONTINUE, dto::Command::PauseContinue },
         { MAV_CMD_DO_PARACHUTE, dto::Command::Parachute },
-        
+
         // TODO: MAV_CMD_DO_SET_ROI, MAV_CMD_DO_MOUNT_CONTROL, MAV_CMD_DO_DIGICAM_CONTROL, MAV_CMD_NAV_LOITER_UNLIM
     };
 
@@ -55,10 +58,10 @@ class CommandHandler::Impl
 {
 public:
     domain::VehicleService* vehicleService = serviceRegistry->vehicleService();
+    domain::TelemetryService* telemetryService = serviceRegistry->telemetryService();
 
     struct ModeAgregator
     {
-        QSharedPointer<IModeHelper> helper;
         quint8 baseMode = 0;
         int customMode = -1;
         int requestedCustomMode = -1;
@@ -69,6 +72,7 @@ public:
         }
     };
     QMap<quint8, ModeAgregator> modes;
+    QMap<quint8, QSharedPointer<IModeHelper> > modeHelpers;
 };
 
 CommandHandler::CommandHandler(MavLinkCommunicator* communicator):
@@ -77,6 +81,9 @@ CommandHandler::CommandHandler(MavLinkCommunicator* communicator):
     d(new Impl())
 {
     serviceRegistry->commandService()->addHandler(this);
+
+    connect(d->vehicleService, &domain::VehicleService::vehicleRemoved,
+            this, &CommandHandler::onVehicleRemoved);
 }
 
 CommandHandler::~CommandHandler()
@@ -133,10 +140,25 @@ void CommandHandler::processHeartbeat(const mavlink_message_t& message)
     mavlink_heartbeat_t heartbeat;
     mavlink_msg_heartbeat_decode(&message, &heartbeat);
 
-    if (d->modes[message.sysid].helper.isNull())
+    domain::TelemetryPortion portion(d->telemetryService->mavNode(message.sysid));
+
+    if (d->modeHelpers.value(message.sysid).isNull())
     {
         ModeHelperFactory f;
-        d->modes[message.sysid].helper.reset(f.create(heartbeat.autopilot, heartbeat.type));
+        d->modeHelpers[message.sysid].reset(f.create(heartbeat.autopilot, heartbeat.type));
+
+        if (d->modeHelpers[message.sysid])
+        {
+            portion.setParameter({ domain::Telemetry::System, domain::Telemetry::AvailableModes },
+                                 qVariantFromValue(d->modeHelpers[message.sysid]->availableModes()));
+        }
+    }
+
+    if (d->modeHelpers[message.sysid])
+    {
+        portion.setParameter({ domain::Telemetry::System, domain::Telemetry::Mode },
+                             QVariant::fromValue(d->modeHelpers[message.sysid]->customModeToMode(
+                                 heartbeat.custom_mode)));
     }
 
     d->modes[message.sysid].baseMode = heartbeat.base_mode;
@@ -254,7 +276,7 @@ void CommandHandler::sendCommandLong(quint8 mavId, quint16 commandId,
 
 void CommandHandler::sendSetMode(quint8 mavId, domain::vehicle::Mode mode)
 {
-    if (d->modes[mavId].helper.isNull()) return;
+    if (d->modeHelpers.value(mavId).isNull()) return;
 
     mavlink_message_t message;
     mavlink_set_mode_t setMode;
@@ -262,7 +284,7 @@ void CommandHandler::sendSetMode(quint8 mavId, domain::vehicle::Mode mode)
     setMode.target_system = mavId;
     setMode.base_mode = d->modes[mavId].baseMode;
 
-    d->modes[mavId].requestedCustomMode = d->modes[mavId].helper->modeToCustomMode(mode);
+    d->modes[mavId].requestedCustomMode = d->modeHelpers[mavId]->modeToCustomMode(mode);
     if (d->modes[mavId].requestedCustomMode < 0) return;
 
     setMode.custom_mode = d->modes[mavId].requestedCustomMode;
@@ -304,6 +326,10 @@ void CommandHandler::sendNavTo(quint8 mavId, double latitude, double longitude, 
     mavlink_message_t message;
     mavlink_mission_item_t item;
 
+    item.param1 = 0;
+    item.param2 = 0;
+    item.param3 = 0;
+    item.param4 = 0;
     item.target_system = mavId;
     item.target_component = MAV_COMP_ID_MISSIONPLANNER;
     item.frame = MAV_FRAME_GLOBAL_RELATIVE_ALT;
@@ -311,8 +337,8 @@ void CommandHandler::sendNavTo(quint8 mavId, double latitude, double longitude, 
     item.current = 2; // guided
     item.seq = 0;
     item.autocontinue = false;
-    item.x = latitude;
-    item.y = longitude;
+    item.x = static_cast<float>(latitude);
+    item.y = static_cast<float>(longitude);
     item.z = altitude;
 
     AbstractLink* link = m_communicator->mavSystemLink(mavId);
@@ -323,7 +349,7 @@ void CommandHandler::sendNavTo(quint8 mavId, double latitude, double longitude, 
                                          m_communicator->linkChannel(link),
                                          &message, &item);
     m_communicator->sendMessage(message, link);
- 
+
     // TODO: wait mission ack
     this->ackCommand(d->vehicleService->vehicleIdByMavId(mavId),
                      dto::Command::NavTo, dto::Command::Completed);
@@ -407,5 +433,10 @@ void CommandHandler::sendManualControl(quint8 mavId, float pitch, float roll,
     // TODO: wait ack
     this->ackCommand(d->vehicleService->vehicleIdByMavId(mavId),
                      dto::Command::ManualImpacts, dto::Command::Completed);
+}
+
+void CommandHandler::onVehicleRemoved(const dto::VehiclePtr& vehicle)
+{
+    d->modeHelpers.remove(vehicle->mavId());
 }
 

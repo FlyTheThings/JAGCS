@@ -20,6 +20,7 @@ class MavLinkCommunicator::Impl
 public:
     quint8 systemId;
     quint8 componentId;
+    bool retranslationEnabled;
 
     QMap<AbstractLink*, quint8> linkChannels;
     QMap<quint8, AbstractLink*> mavSystemLinks;
@@ -32,7 +33,8 @@ public:
     int oldPacketsDrops = 0;
 };
 
-MavLinkCommunicator::MavLinkCommunicator(quint8 systemId, quint8 componentId, QObject* parent):
+MavLinkCommunicator::MavLinkCommunicator(quint8 systemId, quint8 componentId,
+                                         bool retranslationEnabled, QObject* parent):
     AbstractCommunicator(parent),
     d(new Impl())
 {
@@ -40,6 +42,7 @@ MavLinkCommunicator::MavLinkCommunicator(quint8 systemId, quint8 componentId, QO
 
     d->systemId = systemId;
     d->componentId = componentId;
+    d->retranslationEnabled = retranslationEnabled;
 
     for (quint8 channel = 0; channel < MAVLINK_COMM_NUM_BUFFERS; ++channel)
     {
@@ -68,6 +71,11 @@ quint8 MavLinkCommunicator::systemId() const
 quint8 MavLinkCommunicator::componentId() const
 {
     return d->componentId;
+}
+
+bool MavLinkCommunicator::retranslationEnabled() const
+{
+    return d->retranslationEnabled;
 }
 
 quint8 MavLinkCommunicator::linkChannel(AbstractLink* link) const
@@ -130,8 +138,9 @@ void MavLinkCommunicator::switchLinkProtocol(AbstractLink* link, AbstractCommuni
 
     emit mavLinkProtocolChanged(link, channelStatus->flags & MAVLINK_STATUS_FLAG_OUT_MAVLINK1 ?
                                     MavLink1 : MavLink2);
-#endif
+#else
     emit mavLinkProtocolChanged(link, MavLink1);
+#endif
 }
 
 void MavLinkCommunicator::setSystemId(quint8 systemId)
@@ -148,6 +157,14 @@ void MavLinkCommunicator::setComponentId(quint8 componentId)
 
     d->componentId = componentId;
     emit componentIdChanged(componentId);
+}
+
+void MavLinkCommunicator::setRetranslationEnabled(bool retranslationEnabled)
+{
+    if (d->retranslationEnabled == retranslationEnabled) return;
+
+    d->retranslationEnabled = retranslationEnabled;
+    emit retranslationEnabledChanged(retranslationEnabled);
 }
 
 void MavLinkCommunicator::addHandler(AbstractMavLinkHandler* handler)
@@ -182,12 +199,12 @@ void MavLinkCommunicator::onDataReceived(const QByteArray& data)
         if (!mavlink_parse_char(channel, (quint8)data[pos], &message, &status)) continue;
 
 #ifdef MAVLINK_V2
-        // if we got MavLink v2, switch to on it!
-        mavlink_status_t* channelStatus = mavlink_get_channel_status(channel);
-        if (!(channelStatus->flags & MAVLINK_STATUS_FLAG_IN_MAVLINK1))
-        {
-            this->switchLinkProtocol(d->receivedLink, MavLink2);
-        }
+       // if we got MavLink v2, switch to on it!
+       mavlink_status_t* channelStatus = mavlink_get_channel_status(channel);
+       if (!(channelStatus->flags & MAVLINK_STATUS_FLAG_IN_MAVLINK1))
+       {
+           this->switchLinkProtocol(d->receivedLink, MavLink2);
+       }
 #endif
 
         d->mavSystemLinks[message.sysid] = d->receivedLink;
@@ -195,6 +212,14 @@ void MavLinkCommunicator::onDataReceived(const QByteArray& data)
         for (AbstractMavLinkHandler* handler: d->handlers)
         {
             handler->processMessage(message);
+        }
+
+        if (d->retranslationEnabled)
+        {
+            for (AbstractLink* link: this->links())
+            {
+                if (link != d->receivedLink) this->sendMessage(message, link);
+            }
         }
     }
 

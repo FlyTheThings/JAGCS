@@ -1,6 +1,9 @@
 #ifndef QML_TYPES_H
 #define QML_TYPES_H
 
+// Industrial
+#include "colors.h"
+
 // Internal
 #include "vehicle.h"
 #include "link_description.h"
@@ -26,6 +29,7 @@
 #include "aerial_vehicle_display_presenter.h"
 #include "vertical_profile_presenter.h"
 #include "drawer_presenter.h"
+#include "mavlink_settings_presenter.h"
 #include "link_list_presenter.h"
 #include "link_presenter.h"
 #include "link_edit_presenter.h"
@@ -38,6 +42,7 @@
 #include "mission_item_list_presenter.h"
 #include "mission_item_edit_presenter.h"
 #include "mission_assignment_presenter.h"
+#include "log_list_presenter.h"
 #include "database_presenter.h"
 #include "gui_settings_presenter.h"
 #include "joystick_settings_presenter.h"
@@ -64,6 +69,8 @@ using namespace presentation;
 
 static void registerTypes()
 {
+    QML_TYPE(Colors);
+
     QML_UNCREATABLE_TYPE(Vehicle);
     QML_UNCREATABLE_TYPE(LinkDescription);
     QML_UNCREATABLE_TYPE(Mission);
@@ -90,6 +97,7 @@ static void registerTypes()
     QML_TYPE(VehiclesListDisplayPresenter);
     QML_TYPE(AerialVehicleDisplayPresenter);
     QML_TYPE(DrawerPresenter);
+    QML_TYPE(MavLinkSettingPresenter);
     QML_TYPE(LinkListPresenter);
     QML_TYPE(LinkPresenter);
     QML_TYPE(LinkEditPresenter);
@@ -103,6 +111,8 @@ static void registerTypes()
     QML_TYPE2(MissionItemListPresenter);
     QML_TYPE2(MissionItemEditPresenter);
     QML_TYPE2(MissionAssignmentPresenter);
+
+    QML_TYPE2(LogListPresenter);
 
     QML_TYPE(DatabasePresenter);
     QML_TYPE(GuiSettingsPresenter);
